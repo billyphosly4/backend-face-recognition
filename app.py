@@ -30,15 +30,29 @@ frontend_origins = os.environ.get(
     "https://face-recognition-system-eta.vercel.app http://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:3000 http://localhost:3000"
 ).strip()
 allowed_origins = [origin.strip() for origin in frontend_origins.split() if origin.strip()]
+
+# Enhanced CORS configuration
 CORS(
     app,
-    resources={r"/api/*": {
-        "origins": allowed_origins,
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
-    }},
+    origins=allowed_origins,
+    methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
     supports_credentials=True,
+    max_age=3600
 )
+
+@app.before_request
+def handle_preflight():
+    """Explicitly handle CORS preflight requests."""
+    origin = request.headers.get('Origin')
+    if origin in allowed_origins and request.method == 'OPTIONS':
+        response = jsonify({"status": "ok"})
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers["Access-Control-Max-Age"] = "3600"
+        return response, 200
+
 app.config["CORS_HEADERS"] = "Content-Type"
 
 @app.route("/", methods=["GET"])
