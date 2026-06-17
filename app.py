@@ -29,7 +29,17 @@ frontend_origins = os.environ.get(
     "FRONTEND_ORIGINS",
     "https://face-recognition-system-eta.vercel.app http://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:3000 http://localhost:3000"
 ).strip()
-allowed_origins = [origin.strip() for origin in frontend_origins.split() if origin.strip()]
+
+allowed_origins = []
+for origin in frontend_origins.split():
+    o = origin.strip()
+    if o:
+        allowed_origins.append(o)
+        # Handle trailing slash discrepancy safely by allowing both versions
+        if o.endswith("/"):
+            allowed_origins.append(o[:-1])
+        else:
+            allowed_origins.append(o + "/")
 
 # Enhanced CORS configuration
 CORS(
@@ -177,24 +187,56 @@ class MockFirestoreClient:
 
 
 # Attempt to connect to real Google Cloud Firestore
-CREDENTIALS_PATH = os.path.join(BASE_DIR, "firebase-credentials.json")
-if os.path.exists(CREDENTIALS_PATH):
-    print("[INFO] firebase-credentials.json found. Connecting to Google Cloud Firestore...")
+service_account_info = None
+
+# Check 1: Parse service account JSON from environment variable
+firebase_env = os.environ.get("FIREBASE_SERVICE_ACCOUNT")
+if firebase_env:
+    try:
+        service_account_info = json.loads(firebase_env)
+        print("[INFO] Firebase service account JSON parsed from FIREBASE_SERVICE_ACCOUNT env var.")
+    except Exception as e:
+        print(f"[WARNING] Failed to parse FIREBASE_SERVICE_ACCOUNT env var as JSON: {e}")
+
+# Check 2: Check GOOGLE_APPLICATION_CREDENTIALS environment variable
+CREDENTIALS_PATH = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+
+# Check 3: Check /tmp/firebase-credentials.json
+if not CREDENTIALS_PATH or not os.path.exists(CREDENTIALS_PATH):
+    tmp_credentials_path = "/tmp/firebase-credentials.json"
+    if os.path.exists(tmp_credentials_path):
+        CREDENTIALS_PATH = tmp_credentials_path
+
+# Check 4: Check local firebase-credentials.json
+if not CREDENTIALS_PATH or not os.path.exists(CREDENTIALS_PATH):
+    CREDENTIALS_PATH = os.path.join(BASE_DIR, "firebase-credentials.json")
+
+# Connect to Firestore if we have a parsed JSON dict or a valid file path
+if service_account_info or (CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH)):
+    target_source = "env var" if service_account_info else CREDENTIALS_PATH
+    print(f"[INFO] Connecting to Google Cloud Firestore using credentials from {target_source}...")
     try:
         import firebase_admin
         from firebase_admin import credentials as fa_credentials
         from google.cloud import firestore as gc_firestore
-        from google.oauth2 import service_account
 
         if not firebase_admin._apps:
-            cred = fa_credentials.Certificate(CREDENTIALS_PATH)
+            if service_account_info:
+                cred = fa_credentials.Certificate(service_account_info)
+            else:
+                cred = fa_credentials.Certificate(CREDENTIALS_PATH)
             firebase_admin.initialize_app(cred)
 
-        service_creds = service_account.Credentials.from_service_account_file(
-            CREDENTIALS_PATH,
-            scopes=["https://www.googleapis.com/auth/cloud-platform"],
-        )
-        db = gc_firestore.Client(project=service_creds.project_id, credentials=service_creds)
+        if service_account_info:
+            db = gc_firestore.Client.from_service_account_info(service_account_info)
+        else:
+            from google.oauth2 import service_account as oauth_credentials
+            service_creds = oauth_credentials.Credentials.from_service_account_file(
+                CREDENTIALS_PATH,
+                scopes=["https://www.googleapis.com/auth/cloud-platform"],
+            )
+            db = gc_firestore.Client(project=service_creds.project_id, credentials=service_creds)
+        
         USING_MOCK_FIRESTORE = False
         print("[INFO] ✓ Connected to Google Cloud Firestore successfully.")
     except Exception as e:
@@ -202,7 +244,7 @@ if os.path.exists(CREDENTIALS_PATH):
         print(f"[WARNING] Firestore initialization failed: {e}")
         print("[INFO] Falling back to Mock Firestore emulator...")
 else:
-    print("[INFO] No firebase-credentials.json found in backend/.")
+    print("[INFO] No firebase-credentials.json or FIREBASE_SERVICE_ACCOUNT env var found.")
     print("[INFO] Using file-based Mock Firestore for local development.")
 
 if USING_MOCK_FIRESTORE:
@@ -214,7 +256,8 @@ if USING_MOCK_FIRESTORE:
 # 2. DeepFace Biometric Engine Check
 # ─────────────────────────────────────────────────────────────────────────
 DEEPFACE_AVAILABLE = False
-DEEPFACE_ERROR = ""
+DEEPFACE_ERROR = "Checking biometric compatibility in background thread..."
+DEEPFACE_CHECK_COMPLETE = False
 
 
 def check_biometric_engine():
@@ -225,7 +268,7 @@ def check_biometric_engine():
             [sys.executable, "-c", "from deepface import DeepFace; print('ENGINE_OK')"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=10,
+            timeout=15,  # Slightly higher timeout to ensure completion on slower nodes
         )
         stdout = result.stdout.decode("utf-8", errors="ignore").strip()
         stderr = result.stderr.decode("utf-8", errors="ignore").strip()
@@ -248,7 +291,14 @@ def check_biometric_engine():
         return False, str(e)
 
 
-DEEPFACE_AVAILABLE, DEEPFACE_ERROR = check_biometric_engine()
+def run_biometric_check_async():
+    global DEEPFACE_AVAILABLE, DEEPFACE_ERROR, DEEPFACE_CHECK_COMPLETE
+    DEEPFACE_AVAILABLE, DEEPFACE_ERROR = check_biometric_engine()
+    DEEPFACE_CHECK_COMPLETE = True
+
+
+import threading
+threading.Thread(target=run_biometric_check_async, daemon=True).start()
 
 
 # ─────────────────────────────────────────────────────────────────────────
