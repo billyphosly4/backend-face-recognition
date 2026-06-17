@@ -1,0 +1,35 @@
+# Python cache and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+
+# Local environment variables
+.env
+.env.*
+
+# Firebase service account credentials
+firebase-credentials.json
+
+# Local data files
+mock_guides.json
+mock_tourists.json
+mock_*.
+*db.json
+
+# Temporary files
+temp/
+*.log
+*.pid
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
