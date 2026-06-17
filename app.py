@@ -16,6 +16,7 @@ import base64
 import hashlib
 import json
 import traceback
+import datetime
 import numpy as np
 import cv2
 from PIL import Image
@@ -24,7 +25,17 @@ from flask_cors import CORS
 from PIL import Image
 
 app = Flask(__name__)
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+frontend_origins = os.environ.get(
+    "FRONTEND_ORIGINS",
+    "http://127.0.0.1:5173 http://localhost:3000"
+).strip()
+allowed_origins = [origin.strip() for origin in frontend_origins.split() if origin.strip()]
+CORS(
+    app,
+    resources={r"/api/*": {"origins": allowed_origins}},
+    supports_credentials=True,
+)
+app.config["CORS_HEADERS"] = "Content-Type"
 
 # ── Configuration ────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -470,7 +481,7 @@ def register_guide():
             "languages": languages,
             "face_embedding": embedding,
             "status": "approved",
-            "registered_at": str(np.datetime64("now")),
+            "registered_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
 
         if not USING_MOCK_FIRESTORE:
@@ -798,6 +809,7 @@ def verify_guide():
                 "distance": round(distance, 4),
                 "threshold": float(threshold),
                 "engine": engine,
+                "verified_at": datetime.datetime.now(datetime.UTC).isoformat(),
                 "guide": {
                     "id": doc_snapshot.id,
                     "name": guide_data.get("name", ""),
