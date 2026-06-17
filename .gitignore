@@ -24,6 +24,9 @@ temp/
 *.log
 *.pid
 
+# Local test virtualenv
+.venv-depcheck/
+
 # OS files
 .DS_Store
 Thumbs.db
