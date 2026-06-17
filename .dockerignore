@@ -1,0 +1,15 @@
+__pycache__/
+venv/
+.temp
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.swo
+*.db
+*.sqlite3
+.env
+.env.*
+*.log
+temp/
+.venv-depcheck/
