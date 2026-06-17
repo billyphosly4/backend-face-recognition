@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     g++ \
     libglib2.0-0 \
+    libgl1 \
     libsm6 \
     libxrender1 \
     libxext6 \
