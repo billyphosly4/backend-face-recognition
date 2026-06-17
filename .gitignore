@@ -10,8 +10,6 @@ venv/
 .env
 .env.*
 
-# Firebase service account credentials
-firebase-credentials.json
 
 # Local data files
 mock_guides.json

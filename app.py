@@ -27,7 +27,7 @@ from PIL import Image
 app = Flask(__name__)
 frontend_origins = os.environ.get(
     "FRONTEND_ORIGINS",
-    "http://127.0.0.1:5173 http://localhost:3000"
+    "https://face-recognition-system-eta.vercel.app http://127.0.0.1:5173 http://localhost:5173 http://127.0.0.1:3000 http://localhost:3000"
 ).strip()
 allowed_origins = [origin.strip() for origin in frontend_origins.split() if origin.strip()]
 CORS(
@@ -36,6 +36,16 @@ CORS(
     supports_credentials=True,
 )
 app.config["CORS_HEADERS"] = "Content-Type"
+
+@app.route("/", methods=["GET"])
+def index():
+    return jsonify(
+        {
+            "message": "Face Recognition Backend API is running.",
+            "api_root": "/api/status",
+            "note": "Use /api/status or other /api endpoints. The root URL is for health messages only.",
+        }
+    )
 
 # ── Configuration ────────────────────────────────────────────────────────
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
