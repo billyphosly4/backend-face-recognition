@@ -32,7 +32,11 @@ frontend_origins = os.environ.get(
 allowed_origins = [origin.strip() for origin in frontend_origins.split() if origin.strip()]
 CORS(
     app,
-    resources={r"/api/*": {"origins": allowed_origins}},
+    resources={r"/api/*": {
+        "origins": allowed_origins,
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }},
     supports_credentials=True,
 )
 app.config["CORS_HEADERS"] = "Content-Type"
@@ -207,7 +211,7 @@ def check_biometric_engine():
             [sys.executable, "-c", "from deepface import DeepFace; print('ENGINE_OK')"],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            timeout=30,
+            timeout=10,
         )
         stdout = result.stdout.decode("utf-8", errors="ignore").strip()
         stderr = result.stderr.decode("utf-8", errors="ignore").strip()
